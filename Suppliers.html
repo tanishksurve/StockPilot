@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StockPilot • Suppliers</title>
+
+  <!-- Icons & libs -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    :root{
+      --accent:#4534d9;
+      --light-bg:#f8f9fa;
+      --card-bg:#ffffff;
+      --text:#1e1e1e;
+      --muted:#666;
+      --radius:12px;
+      --ok:#3CB371;   /* green */
+      --warn:#FFC107; /* amber */
+      --bad:#E53935;  /* red */
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:'Segoe UI',sans-serif; background:var(--light-bg); color:var(--text); display:flex; min-height:100vh}
+
+    /* ===== Sidebar (sticky; overlays on small) ===== */
+    aside{
+      width:220px; background:#fff; border-right:1px solid #ddd;
+      position:fixed; inset:0 auto 0 0; z-index:1500; padding:20px 0;
+      display:flex; flex-direction:column; justify-content:space-between;
+      transition:width .3s ease; box-shadow:2px 0 10px rgba(0,0,0,.05);
+    }
+    .side-top{display:flex; flex-direction:column; gap:18px}
+    .logo-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 20px;
+      margin-bottom: 20px;
+    }
+    .logo {
+      height: 50px;
+      width: 50px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #4534d9;   /* default: bordered logo */
+      padding: 5px;
+    }
+    .logo-text {
+      font-size: 20px;
+      font-weight: bold;
+      color: #4534d9;
+      margin-left: 10px;
+    }
+    .side-item{display:flex; align-items:center; gap:12px; padding:12px 24px; cursor:pointer; color:var(--text); text-decoration:none}
+    .side-item i{min-width:20px; text-align:center; font-size:18px; transition:.2s}
+    .side-item:hover{background:#f5f5f5}
+    .side-item:hover i{color:var(--accent)}
+    .active{background:#f5f5ff}
+    .active i,.active span{color:var(--accent)}
+    .side-divider{border-top:1px solid #eee; margin:10px 20px}
+
+    /* ===== Main / Topbar ===== */
+    main{flex:1; margin-left:220px; padding:30px; transition:margin-left .3s ease}
+    header{position:relative; display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; z-index:1000}
+    header h1{margin:0; font-size:24px}
+    .head-right{display:flex; align-items:center; gap:20px}
+
+    /* Notifications */
+    .notify{position:relative; z-index:1200}
+    .notify .bell{font-size:20px; cursor:pointer; position:relative}
+    .badge{position:absolute; top:-6px; right:-6px; background:#f44336; color:#fff; width:18px; height:18px; border-radius:50%;
+      font-size:10px; display:flex; align-items:center; justify-content:center}
+    .panel{position:absolute; top:34px; right:0; width:340px; background:#fff; border-radius:var(--radius);
+      box-shadow:0 10px 24px rgba(0,0,0,.18); display:none; overflow:hidden; z-index:1600;}
+    .panel.show{display:block}
+    .panel h4{margin:0; padding:12px 14px; border-bottom:1px solid #eee}
+    .note{padding:12px 14px; border-bottom:1px solid #eee}
+    .note .time{font-size:12px; color:var(--muted); margin-top:4px}
+    .panel a{display:block; text-align:center; padding:10px; color:var(--accent); text-decoration:none}
+    .avatar{width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700}
+
+    /* ===== KPI cards ===== */
+    .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:26px}
+    @media (max-width:1200px){ .stats{grid-template-columns:repeat(3,1fr)} }
+    @media (max-width:900px){ .stats{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width:576px){ .stats{grid-template-columns:1fr} }
+    .card{
+      background:var(--card-bg); border-radius:16px; padding:18px; position:relative; overflow:hidden;
+      box-shadow:0 2px 6px rgba(0,0,0,.05); transition:.25s;
+    }
+    .card:hover{transform:translateY(-3px); box-shadow:0 6px 16px rgba(0,0,0,.08)}
+    .card h3{margin:0 0 10px 0; font-size:16px; color:var(--muted)}
+    .card p{margin:0; font-size:clamp(20px,3.5vw,28px); font-weight:700}
+    .delta{font-size:13px; margin-top:4px}
+    .card .icon{position:absolute; top:14px; right:14px; font-size:22px; opacity:.18; transition:.25s}
+    .card:hover .icon{opacity:.9}
+    .c1{background:linear-gradient(145deg,#eef3ff,#ffffff)}
+    .c2{background:linear-gradient(145deg,#effaf4,#ffffff)}
+    .c3{background:linear-gradient(145deg,#fff6f6,#ffffff)}
+    .c4{background:linear-gradient(145deg,#fffbee,#ffffff)}
+
+    /* ===== Reusable shells ===== */
+    .card-shell{background:#fff; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,.06); padding:18px; margin-bottom:20px}
+    .card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+    .card-title{font-weight:600; font-size:18px}
+    .head-actions{display:flex; gap:8px}
+    .icon-btn{width:34px; height:34px; border-radius:50%; border:1px solid #ddd; background:#fff; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#666}
+    .icon-btn:hover{background:var(--accent); color:#fff; border-color:var(--accent)}
+    .icon-btn i{pointer-events:none}
+
+    /* Inputs */
+    .input, .select{padding:10px 12px; border:1px solid #ddd; border-radius:10px; background:#fff; min-width:180px}
+    .filters-row{display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr 1fr auto; gap:12px}
+    @media (max-width:1100px){ .filters-row{grid-template-columns:1fr 1fr 1fr 1fr} }
+    @media (max-width:700px){ .filters-row{grid-template-columns:1fr 1fr} }
+    @media (max-width:520px){ .filters-row{grid-template-columns:1fr} }
+    .apply-btn{background:#4534d9; color:#fff; border:none; border-radius:10px; padding:12px 16px; cursor:pointer; font-weight:600}
+    .apply-btn:hover{opacity:.95}
+
+    /* Table */
+    .table-wrap{background:#fff; border-radius:12px; overflow:auto}
+    table{width:100%; border-collapse:collapse; min-width:1100px}
+    th,td{padding:12px 14px; border-bottom:1px solid #eee; text-align:left; vertical-align:middle}
+    th{background:#f1f1f1}
+    .chip{padding:6px 10px; border-radius:8px; font-size:12px}
+    .chip.active{background:#eefaf2; color:var(--ok)}
+    .chip.hold{background:#fff8e7; color:#b8860b}
+    .chip.block{background:#fff0f0; color:var(--bad)}
+    /* Align actions horizontally in a single row */
+    td.actions{white-space:nowrap}
+    td.actions .btnrow{display:flex; gap:8px; align-items:center; flex-wrap:nowrap}
+
+    /* Overview charts */
+    .section-title{font-size:20px; font-weight:600; margin:26px 0 14px}
+    .overview{display:grid; grid-template-columns:repeat(2, 1fr); gap:18px; margin-bottom:24px;}
+    @media (max-width:820px){ .overview{grid-template-columns:1fr} }
+    .chart-box{background:#fff; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,.05); padding:16px; position:relative}
+    .chart-box h4{text-align:center; margin:0 0 6px}
+    .chart-actions{position:absolute; top:12px; right:12px}
+    .donut-wrap{display:flex; justify-content:center; align-items:center; padding:4px 0; height:250px}
+    #statusChart{width:min(320px,80%); height:auto !important; display:block}
+
+    /* Supplier Intelligence Hub */
+    .hub-controls{display:grid; grid-template-columns:1fr; gap:10px}
+    .hub-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px}
+    @media (max-width:900px){ .hub-grid{grid-template-columns:1fr} }
+    .hub-block{border:1px solid #eee; border-radius:12px; padding:12px}
+    .hub-block h5{margin:0 0 8px}
+    .hub-output{border-top:1px dashed #e1e1e1; padding-top:10px; color:#333}
+
+    /* Footer */
+    footer{color:#777; text-align:center; margin-top:10px}
+
+    /* Print */
+    @media print{
+      body *{visibility:hidden}
+      #print-area, #print-area *{visibility:visible}
+      #print-area{position:absolute; left:0; top:0; width:100%}
+    }
+
+    /* Modals */
+    .modal{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:3000; display:none; align-items:center; justify-content:center}
+    .modal.show{display:flex}
+    .modal-card{background:#fff; border-radius:16px; padding:24px; width:min(90%,800px); box-shadow:0 10px 30px rgba(0,0,0,.2); position:relative}
+    .modal h3{margin:0 0 16px; font-size:20px}
+    .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-bottom:16px}
+    @media (max-width:600px){ .grid{grid-template-columns:1fr} }
+    .field{display:flex; flex-direction:column; gap:6px}
+    .field.full{grid-column:1/-1}
+    .field label{font-size:14px; color:#555}
+    .field input,.field select,.field textarea{padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-family:inherit}
+    .field textarea{resize:vertical; min-height:80px}
+    .modal-actions{display:flex; justify-content:flex-end; gap:8px}
+
+    /* Supplier View Modal */
+    .supplier-details { padding: 20px; }
+    .supplier-details h4 { margin-top: 0; color: var(--accent); }
+    .supplier-details .detail-row { display: flex; margin-bottom: 10px; }
+    .supplier-details .detail-label { font-weight: 600; width: 150px; color: var(--muted); }
+    .supplier-details .detail-value { flex: 1; }
+    .modal-close { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 22px; cursor: pointer; color: #666; }
+
+    /* ===== Small-screen sidebar overlay logic =====
+       - Show ONLY the logo icon (no name) and remove its border
+       - On hover/focus the sidebar expands and shows names again      */
+    @media (max-width: 992px){
+      aside{width:60px; z-index:2000}
+      /* hide text labels + brand name */
+      aside h2, .side-item span, .logo-text{display:none}
+      /* center icons */
+      .side-item{justify-content:center; padding:14px}
+      /* logo icon: no border, no padding on small screens */
+      .logo{border:none; padding:0}
+
+      main{margin-left:60px}
+
+      /* On hover/focus: expand and reveal names (including brand) */
+      aside:hover, aside:focus-within{width:220px; box-shadow:2px 0 15px rgba(0,0,0,.15)}
+      aside:hover h2, aside:hover .side-item span, aside:hover .logo-text,
+      aside:focus-within h2, aside:focus-within .side-item span, aside:focus-within .logo-text{display:inline}
+      aside:hover .side-item, aside:focus-within .side-item{justify-content:flex-start; padding:12px 24px}
+    }
+
+    @media (max-width:768px){
+      header{flex-direction:column; align-items:flex-start; gap:10px}
+      .head-right{width:100%; justify-content:space-between}
+    }
+    @media (max-width:576px){
+      main{padding:24px 16px}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== Sidebar ===== -->
+  <aside>
+    <div class="side-top">
+      <div class="logo-container">
+        <img src="Logo.jpeg" alt="StockPilot Logo" class="logo">
+        <span class="logo-text">StockPilot</span>
+      </div>
+      <a class="side-item" href="dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+      <a class="side-item" href="inventory.html"><i class="fas fa-boxes"></i><span>Inventory</span></a>
+      <a class="side-item active" href="suppliers.html"><i class="fas fa-truck-loading"></i><span>Suppliers</span></a>
+      <a class="side-item" href="orders.html"><i class="fas fa-shopping-cart"></i><span>Orders</span></a>
+      <a class="side-item" href="reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a>
+      <a class="side-item" href="settings.html"><i class="fas fa-cogs"></i><span>Settings</span></a>
+    </div>
+    <div>
+      <div class="side-divider"></div>
+      <a class="side-item" href="help.html"><i class="fas fa-question-circle"></i><span>Help & Docs</span></a>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <main>
+    <header>
+      <h1>Suppliers</h1>
+      <div class="head-right">
+        <div class="notify">
+          <i class="fas fa-bell bell" id="bell"></i>
+          <span class="badge" id="badge">4</span>
+          <div class="panel" id="panel">
+            <h4>Notifications</h4>
+            <div class="note"><div>Contract expiring: TexWorld Certification</div><div class="time">2h ago</div></div>
+            <div class="note"><div>Price update received: GR-APL from FreshFoods</div><div class="time">5h ago</div></div>
+            <div class="note"><div>Delayed delivery: ABC Traders PO#1042</div><div class="time">Yesterday</div></div>
+            <a href="#">View All</a>
+          </div>
+        </div>
+        <div class="avatar">TS</div>
+      </div>
+    </header>
+
+    <!-- ===== KPI Cards ===== -->
+    <section class="stats">
+      <div class="card c1">
+        <i class="fas fa-industry icon"></i>
+        <h3>Total Suppliers</h3>
+        <p id="k_total">0</p>
+        <div class="delta" style="color:#388e3c">+2 this month</div>
+      </div>
+      <div class="card c2">
+        <i class="fas fa-check-circle icon"></i>
+        <h3>Active</h3>
+        <p id="k_active">0</p>
+        <div class="delta" style="color:#388e3c">Stable</div>
+      </div>
+      <div class="card c3">
+        <i class="fas fa-clock icon"></i>
+        <h3>Avg Lead Time</h3>
+        <p id="k_lead">0 d</p>
+        <div class="delta">Last 30 days</div>
+      </div>
+      <div class="card c4">
+        <i class="fas fa-truck-fast icon"></i>
+        <h3>OTIF</h3>
+        <p id="k_otif">0%</p>
+        <div class="delta">On‑time in full</div>
+      </div>
+    </section>
+
+    <!-- ===== Filters ===== -->
+    <section class="card-shell">
+      <div class="card-head">
+        <div class="card-title">Filter Suppliers</div>
+      </div>
+      <div class="filters-row">
+        <input class="input" id="q" placeholder="Search name / code / email"/>
+        <select class="select" id="f_status">
+          <option value="">All Status</option>
+          <option value="Active">Active</option>
+          <option value="On Hold">On Hold</option>
+          <option value="Blacklisted">Blacklisted</option>
+        </select>
+        <select class="select" id="f_category">
+          <option value="">All Categories</option>
+          <option>Electronics</option><option>Groceries</option><option>Clothing</option><option>Packaging</option>
+        </select>
+        <select class="select" id="f_location">
+          <option value="">All Locations</option>
+          <option>Maharashtra</option><option>Gujarat</option><option>Karnataka</option><option>Delhi</option>
+        </select>
+        <select class="select" id="f_lead">
+          <option value="">Lead Time</option>
+          <option value="7">≤ 7 days</option>
+          <option value="14">8–14 days</option>
+          <option value="15">> 14 days</option>
+        </select>
+        <button class="apply-btn" id="applyFilters">Apply Filters</button>
+      </div>
+    </section>
+
+    <!-- ===== Suppliers Table ===== -->
+    <section class="card-shell" id="print-area">
+      <div class="card-head">
+        <div class="card-title">Suppliers</div>
+        <div class="head-actions">
+          <button class="icon-btn" id="btnAdd" title="Add Supplier"><i class="fas fa-plus"></i></button>
+          <button class="icon-btn" id="btnExport" title="Export CSV"><i class="fas fa-file-export"></i></button>
+          <button class="icon-btn" id="btnPrint" title="Print"><i class="fas fa-print"></i></button>
+          <button class="icon-btn" id="btnPDF" title="Download PDF"><i class="fas fa-file-pdf"></i></button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="supTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Code</th>
+              <th>Category</th>
+              <th>Primary Contact</th>
+              <th>Location</th>
+              <th>Avg Lead (d)</th>
+              <th>OTIF %</th>
+              <th>Defect %</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="supBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== Overview: exactly 2 per row ===== -->
+    <h2 class="section-title">Overview</h2>
+    <section class="overview">
+      <div class="chart-box">
+        <h4>Supplier Status</h4>
+        <div class="chart-actions">
+          <button class="icon-btn" id="pdfStatus" title="Download PDF"><i class="fas fa-download"></i></button>
+        </div>
+        <div class="donut-wrap">
+          <canvas id="statusChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <h4>OTIF by Month</h4>
+        <div class="chart-actions">
+          <button class="icon-btn" id="pdfOTIF" title="Download PDF"><i class="fas fa-download"></i></button>
+        </div>
+        <canvas id="otifChart" height="180"></canvas>
+      </div>
+
+      <div class="chart-box">
+        <h4>Avg Lead Time Trend</h4>
+        <div class="chart-actions">
+          <button class="icon-btn" id="pdfLead" title="Download PDF"><i class="fas fa-download"></i></button>
+        </div>
+        <canvas id="leadChart" height="180"></canvas>
+      </div>
+
+      <div class="chart-box">
+        <h4>Top 10 Suppliers by Spend</h4>
+        <div class="chart-actions">
+          <button class="icon-btn" id="pdfSpend" title="Download PDF"><i class="fas fa-download"></i></button>
+        </div>
+        <canvas id="paretoChart" height="180"></canvas>
+      </div>
+    </section>
+
+    <!-- ===== Supplier Intelligence Hub (unified AI tool) ===== -->
+    <section class="card-shell">
+      <div class="card-head">
+        <div class="card-title">Supplier Intelligence Hub</div>
+      </div>
+
+      <div class="hub-controls">
+        <div class="hub-grid">
+          <div class="hub-block">
+            <h5>Tool</h5>
+            <select class="select" id="hub_tool">
+              <option value="lead_time">Lead‑time Prediction</option>
+              <option value="recommend">Recommend Supplier</option>
+              <option value="risk">Risk Score</option>
+              <option value="price_anomaly">Price Anomaly Check</option>
+              <option value="duplicate">Duplicate Detection</option>
+              <option value="po_summary">PO Email Summarizer</option>
+              <option value="expiry">Contract Expiry Alerts</option>
+              <option value="otif_forecast">On‑time Delivery Forecast</option>
+              <option value="reallocate">Volume Reallocation</option>
+            </select>
+          </div>
+
+          <div class="hub-block" id="hub_inputs">
+            <!-- dynamic inputs injected here -->
+          </div>
+        </div>
+
+        <div>
+          <button class="apply-btn" id="hub_run" style="margin-top:8px">Run</button>
+          <div class="hub-output" id="hub_out"></div>
+        </div>
+      </div>
+    </section>
+
+    <footer>© 2025 StockPilot. All rights reserved.</footer>
+  </main>
+
+  <!-- ===== Modal: Add/Edit Supplier ===== -->
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <h3 id="modalTitle">Add Supplier</h3>
+      <div class="grid">
+        <div class="field"><label>Name</label><input id="f_name"></div>
+        <div class="field"><label>Code</label><input id="f_code"></div>
+        <div class="field"><label>Category</label>
+          <select id="f_cat"><option>Electronics</option><option>Groceries</option><option>Clothing</option><option>Packaging</option></select>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="f_status2"><option>Active</option><option>On Hold</option><option>Blacklisted</option></select>
+        </div>
+        <div class="field"><label>Primary Contact</label><input id="f_contact" placeholder="Name, phone"></div>
+        <div class="field"><label>Email</label><input id="f_email" placeholder="email@domain.com"></div>
+        <div class="field"><label>Location</label><input id="f_loc" placeholder="City, State"></div>
+        <div class="field"><label>Avg Lead (days)</label><input type="number" id="f_lead" value="7"></div>
+        <div class="field"><label>OTIF %</label><input type="number" id="f_otif" value="95"></div>
+        <div class="field"><label>Defect %</label><input type="number" id="f_def" value="1.0"></div>
+        <div class="field full"><label>Notes</label><textarea id="f_notes" rows="3"></textarea></div>
+      </div>
+      <div class="modal-actions">
+        <button class="icon-btn" id="btnCancel" title="Cancel"><i class="fas fa-times"></i></button>
+        <button class="icon-btn" id="btnSave" title="Save"><i class="fas fa-check"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Modal: View Supplier (with close button) ===== -->
+  <div class="modal" id="viewModal">
+    <div class="modal-card">
+      <button class="modal-close" id="viewModalClose" title="Close">&times;</button>
+      <h3 id="viewModalTitle">Supplier Details</h3>
+      <div class="supplier-details" id="supplierDetails">
+        <!-- Details populated via JS -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ===== Notifications ===== */
+    const bell = document.getElementById('bell'), panel=document.getElementById('panel');
+    bell.addEventListener('click', (e)=>{ e.stopPropagation(); panel.classList.toggle('show'); });
+    document.addEventListener('click', ()=> panel.classList.remove('show'));
+    panel.addEventListener('click', (e)=> e.stopPropagation());
+
+    /* ===== Mock data & storage ===== */
+    const LS_KEY = 'stockpilot_suppliers';
+    let suppliers = JSON.parse(localStorage.getItem(LS_KEY) || 'null') || [
+      {name:'ABC Traders', code:'SUP-ABC', cat:'Electronics', contact:'A. Kumar, +91 90000 11111', email:'sales@abc.com', loc:'Mumbai, Maharashtra', lead:9, otif:92, defect:0.8, status:'Active', spend:120000, certExpiry:'2025-10-12', products:['EL-TV-42','EL-BH-100']},
+      {name:'FreshFoods', code:'SUP-FF', cat:'Groceries', contact:'R. Iyer, +91 90000 22222', email:'orders@freshfoods.in', loc:'Bengaluru, Karnataka', lead:6, otif:96, defect:1.2, status:'Active', spend:90000, certExpiry:'2025-08-25', products:['GR-APL','GR-ORG-MLK']},
+      {name:'TexWorld', code:'SUP-TEX', cat:'Clothing', contact:'S. Shah, +91 90000 33333', email:'contact@texworld.co', loc:'Surat, Gujarat', lead:12, otif:88, defect:2.1, status:'On Hold', spend:70000, certExpiry:'2025-09-15', products:['CL-TS-M','CL-TS-L']},
+      {name:'PackRight', code:'SUP-PR', cat:'Packaging', contact:'M. Rao, +91 90000 44444', email:'hello@packright.in', loc:'Delhi, Delhi', lead:5, otif:98, defect:0.5, status:'Active', spend:50000, certExpiry:'2025-08-02', products:['PK-BOX-MED','PK-TAPE']}
+    ];
+    function save(){ localStorage.setItem(LS_KEY, JSON.stringify(suppliers)); }
+
+    /* ===== KPI ===== */
+    function renderKPIs(){
+      document.getElementById('k_total').textContent = suppliers.length;
+      const active = suppliers.filter(s=>s.status==='Active').length;
+      const hold = suppliers.filter(s=>s.status==='On Hold').length;
+      const black = suppliers.filter(s=>s.status==='Blacklisted').length;
+      document.getElementById('k_active').textContent = `${active} / ${hold} / ${black}`;
+      const avgLead = Math.round(suppliers.reduce((a,b)=>a+b.lead,0)/suppliers.length||0);
+      document.getElementById('k_lead').textContent = avgLead+' d';
+      const avgOTIF = Math.round(suppliers.reduce((a,b)=>a+b.otif,0)/suppliers.length||0);
+      document.getElementById('k_otif').textContent = avgOTIF+'%';
+    }
+
+    /* ===== Filters & Table ===== */
+    const supBody = document.getElementById('supBody');
+    const q = document.getElementById('q');
+    const f_status = document.getElementById('f_status');
+    const f_category = document.getElementById('f_category');
+    const f_location = document.getElementById('f_location');
+    const f_lead = document.getElementById('f_lead');
+    document.getElementById('applyFilters').addEventListener('click', render);
+
+    function matchesLeadFilter(lead){
+      const v = f_lead.value;
+      if(!v) return true;
+      if(v==='7') return lead<=7;
+      if(v==='14') return lead>=8 && lead<=14;
+      if(v==='15') return lead>14;
+      return true;
+    }
+
+    function chip(status){
+      if(status==='Active') return '<span class="chip active">Active</span>';
+      if(status==='On Hold') return '<span class="chip hold">On Hold</span>';
+      return '<span class="chip block">Blacklisted</span>';
+    }
+
+    function render(){
+      renderKPIs();
+      const kw = (q.value||'').toLowerCase();
+      const rows = suppliers.filter(s=>{
+        const text = (s.name+' '+s.code+' '+s.email).toLowerCase();
+        const okKw = !kw || text.includes(kw);
+        const okSt = !f_status.value || s.status===f_status.value;
+        const okCat= !f_category.value || s.cat===f_category.value;
+        const okLoc= !f_location.value || s.loc.includes(f_location.value);
+        const okLd = matchesLeadFilter(s.lead);
+        return okKw && okSt && okCat && okLoc && okLd;
+      });
+
+      supBody.innerHTML = rows.map((s)=>`
+        <tr data-idx="${suppliers.indexOf(s)}">
+          <td>${s.name}</td>
+          <td>${s.code}</td>
+          <td>${s.cat}</td>
+          <td>${s.contact}</td>
+          <td>${s.loc}</td>
+          <td>${s.lead}</td>
+          <td>${s.otif}</td>
+          <td>${s.defect}</td>
+          <td>${chip(s.status)}</td>
+          <td class="actions"><div class="btnrow">
+            <button class="icon-btn btn-view" title="View"><i class="fas fa-eye"></i></button>
+            <button class="icon-btn btn-edit" title="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn btn-del" title="Delete"><i class="fas fa-trash"></i></button>
+          </div></td>
+        </tr>
+      `).join('');
+
+      supBody.querySelectorAll('.btn-edit').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const idx = parseInt(e.currentTarget.closest('tr').dataset.idx, 10);
+          openModal(true, idx);
+        });
+      });
+      supBody.querySelectorAll('.btn-del').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const idx = parseInt(e.currentTarget.closest('tr').dataset.idx, 10);
+          if(confirm('Delete this supplier?')){ suppliers.splice(idx,1); save(); render(); updateCharts(); }
+        });
+      });
+      supBody.querySelectorAll('.btn-view').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const idx = parseInt(e.currentTarget.closest('tr').dataset.idx, 10);
+          showSupplierDetails(idx);
+        });
+      });
+
+      updateCharts();
+      initHubInputs(); // ensure hub has current supplier names
+    }
+
+    /* ===== View Supplier Details (with close button) ===== */
+    function showSupplierDetails(idx) {
+      const supplier = suppliers[idx];
+      const detailsEl = document.getElementById('supplierDetails');
+
+      detailsEl.innerHTML = `
+        <h4>${supplier.name}</h4>
+        <div class="detail-row"><div class="detail-label">Supplier Code:</div><div class="detail-value">${supplier.code}</div></div>
+        <div class="detail-row"><div class="detail-label">Category:</div><div class="detail-value">${supplier.cat}</div></div>
+        <div class="detail-row"><div class="detail-label">Status:</div><div class="detail-value">${supplier.status}</div></div>
+        <div class="detail-row"><div class="detail-label">Primary Contact:</div><div class="detail-value">${supplier.contact}</div></div>
+        <div class="detail-row"><div class="detail-label">Email:</div><div class="detail-value">${supplier.email}</div></div>
+        <div class="detail-row"><div class="detail-label">Location:</div><div class="detail-value">${supplier.loc}</div></div>
+        <div class="detail-row"><div class="detail-label">Avg Lead Time:</div><div class="detail-value">${supplier.lead} days</div></div>
+        <div class="detail-row"><div class="detail-label">OTIF %:</div><div class="detail-value">${supplier.otif}%</div></div>
+        <div class="detail-row"><div class="detail-label">Defect Rate:</div><div class="detail-value">${supplier.defect}%</div></div>
+        <div class="detail-row"><div class="detail-label">Annual Spend:</div><div class="detail-value">₹${supplier.spend.toLocaleString()}</div></div>
+        <div class="detail-row"><div class="detail-label">Certification Expiry:</div><div class="detail-value">${supplier.certExpiry}</div></div>
+        <div class="detail-row"><div class="detail-label">Products:</div><div class="detail-value">${supplier.products.join(', ')}</div></div>
+      `;
+
+      document.getElementById('viewModalTitle').textContent = supplier.name;
+      document.getElementById('viewModal').classList.add('show');
+    }
+    // Close view modal (X button and clicking backdrop)
+    document.getElementById('viewModalClose').addEventListener('click', ()=> document.getElementById('viewModal').classList.remove('show'));
+    document.addEventListener('click',(e)=>{ if(e.target===document.getElementById('viewModal')) document.getElementById('viewModal').classList.remove('show'); });
+
+    /* ===== Add/Edit modal ===== */
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const f_name = document.getElementById('f_name');
+    const f_code = document.getElementById('f_code');
+    const f_cat  = document.getElementById('f_cat');
+    const f_status2 = document.getElementById('f_status2');
+    const f_contact = document.getElementById('f_contact');
+    const f_email = document.getElementById('f_email');
+    const f_loc = document.getElementById('f_loc');
+    const f_lead2 = document.getElementById('f_lead');
+    const f_otif2 = document.getElementById('f_otif');
+    const f_def = document.getElementById('f_def');
+    const f_notes = document.getElementById('f_notes');
+    let editIndex = -1;
+
+    function openModal(edit=false, idx=-1){
+      modal.classList.add('show');
+      if(edit){
+        modalTitle.textContent='Edit Supplier';
+        const s = suppliers[idx];
+        f_name.value=s.name; f_code.value=s.code; f_cat.value=s.cat; f_status2.value=s.status;
+        f_contact.value=s.contact; f_email.value=s.email; f_loc.value=s.loc;
+        f_lead2.value=s.lead; f_otif2.value=s.otif; f_def.value=s.defect; f_notes.value=s.notes||'';
+        editIndex=idx;
+      }else{
+        modalTitle.textContent='Add Supplier';
+        [f_name,f_code,f_contact,f_email,f_loc,f_notes].forEach(i=>i.value='');
+        f_cat.value='Electronics'; f_status2.value='Active'; f_lead2.value=7; f_otif2.value=95; f_def.value=1.0;
+        editIndex=-1;
+      }
+    }
+    function closeModal(){ modal.classList.remove('show'); }
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', ()=>{
+      const s = {
+        name:f_name.value.trim(), code:f_code.value.trim(), cat:f_cat.value, status:f_status2.value,
+        contact:f_contact.value.trim(), email:f_email.value.trim(), loc:f_loc.value.trim(),
+        lead:parseInt(f_lead2.value||'0',10), otif:parseInt(f_otif2.value||'0',10),
+        defect:parseFloat(f_def.value||'0'), spend:Math.round(Math.random()*100000), certExpiry:'2025-10-01',
+        products:[]
+      };
+      if(!s.name||!s.code){ alert('Name and Code are required'); return; }
+      if(editIndex>-1) suppliers[editIndex]=s; else suppliers.push(s);
+      save(); closeModal(); render();
+    });
+
+    /* ===== Export / Print / PDF ===== */
+    document.getElementById('btnExport').addEventListener('click', ()=>{
+      const rows=[...document.querySelectorAll('#supTable tr')];
+      let csv=''; rows.forEach(r=>{
+        const cells=[...r.querySelectorAll('th,td')].map(td=> `"${td.textContent.replace(/"/g,'""')}"`);
+        csv += cells.join(',')+'\n';
+      });
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url=URL.createObjectURL(blob); const a=document.createElement('a');
+      a.href=url; a.download='StockPilot-Suppliers.csv'; document.body.appendChild(a); a.click(); a.remove();
+    });
+    document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
+    document.getElementById('btnPDF').addEventListener('click', ()=> downloadTablePDF());
+
+    function downloadTablePDF(){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(16); doc.text('Suppliers Report',14,18);
+      const head=[['Name','Code','Category','Contact','Location','Lead(d)','OTIF%','Defect%','Status']];
+      const body = suppliers.map(s=>[s.name,s.code,s.cat,s.contact,s.loc,s.lead,s.otif,s.defect,s.status]);
+      doc.autoTable({ head, body, startY:26, styles:{fontSize:9, cellPadding:2}, headStyles:{fillColor:[69,52,217], textColor:255} });
+      doc.save('StockPilot-Suppliers.pdf');
+    }
+
+    /* ===== Charts ===== */
+    let statusChart, otifChart, leadChart, paretoChart;
+    function updateCharts(){
+      const active = suppliers.filter(s=>s.status==='Active').length;
+      const hold = suppliers.filter(s=>s.status==='On Hold').length;
+      const black = suppliers.filter(s=>s.status==='Blacklisted').length;
+
+      const ctx1=document.getElementById('statusChart').getContext('2d');
+      if(statusChart) statusChart.destroy();
+      statusChart=new Chart(ctx1,{
+        type:'doughnut',
+        data:{labels:['Active','On Hold','Blacklisted'],
+          datasets:[{data:[active,hold,black], backgroundColor:['#4caf50','#ffc107','#e53935'], borderWidth:1}]},
+        options:{responsive:true, maintainAspectRatio:true, aspectRatio:1, cutout:'62%', plugins:{legend:{position:'bottom'}}}
+      });
+
+      const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const otifSeries = months.map((_m,i)=> 85 + Math.round(10*Math.sin(i/2)) + Math.round(Math.random()*4));
+      const ctx2=document.getElementById('otifChart').getContext('2d');
+      if(otifChart) otifChart.destroy();
+      otifChart=new Chart(ctx2,{type:'line', data:{labels:months, datasets:[{label:'OTIF %', data:otifSeries, borderColor:'#3b82f6', backgroundColor:'transparent', tension:.35}]},
+        options:{plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true, max:100}}}});
+
+      const leadSeries = months.map((_m,i)=> 7 + Math.round(3*Math.cos(i/3)) + Math.round(Math.random()*2));
+      const ctx3=document.getElementById('leadChart').getContext('2d');
+      if(leadChart) leadChart.destroy();
+      leadChart=new Chart(ctx3,{type:'line', data:{labels:months, datasets:[{label:'Avg Lead (days)', data:leadSeries, borderColor:'#8b5cf6', backgroundColor:'transparent', tension:.35}]},
+        options:{plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}}}});
+
+      const sorted=[...suppliers].sort((a,b)=>b.spend-a.spend).slice(0,10);
+      const ctx4=document.getElementById('paretoChart').getContext('2d');
+      if(paretoChart) paretoChart.destroy();
+      paretoChart=new Chart(ctx4,{type:'bar', data:{labels:sorted.map(s=>s.name), datasets:[{label:'Spend (₹)', data:sorted.map(s=>s.spend), backgroundColor:'#60a5fa'}]},
+        options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}}}});
+    }
+
+    // Chart PDF buttons
+    document.getElementById('pdfStatus').addEventListener('click', ()=> chartToPDF('statusChart','Supplier Status'));
+    document.getElementById('pdfOTIF').addEventListener('click', ()=> chartToPDF('otifChart','OTIF by Month'));
+    document.getElementById('pdfLead').addEventListener('click', ()=> chartToPDF('leadChart','Lead Time Trend'));
+    document.getElementById('pdfSpend').addEventListener('click', ()=> chartToPDF('paretoChart','Top 10 by Spend'));
+    function chartToPDF(id,title){
+      const { jsPDF } = window.jspdf; const doc=new jsPDF();
+      const canvas = document.getElementById(id);
+      const img = canvas.toDataURL('image/png');
+      doc.setFontSize(16); doc.text(title,14,18);
+      doc.addImage(img,'PNG',15,26,180,110);
+      doc.save(`${title.replace(/\s+/g,'_')}.pdf`);
+    }
+
+    /* ===== Supplier Intelligence Hub (unified AI) ===== */
+    const hubTool = document.getElementById('hub_tool');
+    const hubInputs = document.getElementById('hub_inputs');
+    const hubRun = document.getElementById('hub_run');
+    const hubOut = document.getElementById('hub_out');
+
+    function supplierOptionsHTML(){
+      return suppliers.map(s=>`<option>${s.name}</option>`).join('');
+    }
+    function initHubInputs(){
+      const t = hubTool.value;
+      let html='';
+      if(t==='lead_time'){
+        html = `
+          <h5>Inputs</h5>
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <select class="select" id="hub_sup">${supplierOptionsHTML()}</select>
+            <input class="input" id="hub_sku" placeholder="SKU (e.g., EL-BH-100)"/>
+          </div>`;
+      } else if(t==='recommend'){
+        html = `<h5>Inputs</h5><input class="input" id="hub_sku" placeholder="SKU"/>`;
+      } else if(t==='risk'){
+        html = `<h5>Inputs</h5><select class="select" id="hub_sup">${supplierOptionsHTML()}</select>`;
+      } else if(t==='price_anomaly'){
+        html = `<h5>Inputs</h5>
+          <div style="display:flex; gap:8px; flex-wrap:wrap">
+            <input class="input" id="hub_sku" placeholder="SKU"/>
+            <input class="input" id="hub_price" placeholder="New price"/>
+          </div>`;
+      } else if(t==='duplicate'){
+        html = `<h5>Inputs</h5><input class="input" id="hub_name" placeholder="Supplier name"/>`;
+      } else if(t==='po_summary'){
+        html = `<h5>Inputs</h5><textarea class="input" id="hub_text" rows="3" placeholder="Paste PO email text"></textarea>`;
+      } else if(t==='expiry'){
+        html = `<h5>Inputs</h5><div class="small">No inputs required. Click Run to scan expiring certificates within 60 days.</div>`;
+      } else if(t==='otif_forecast'){
+        html = `<h5>Inputs</h5><select class="select" id="hub_sup">${supplierOptionsHTML()}</select>`;
+      } else if(t==='reallocate'){
+        html = `<h5>Inputs</h5><div class="small">No inputs required. Click Run for a suggestion.</div>`;
+      }
+      hubInputs.innerHTML = html;
+      hubOut.innerHTML = '';
+    }
+
+    hubTool.addEventListener('change', initHubInputs);
+
+    hubRun.addEventListener('click', ()=>{
+      const t = hubTool.value;
+      if(t==='lead_time'){
+        const sup = document.getElementById('hub_sup').value;
+        const sku = (document.getElementById('hub_sku').value||'SKU').toUpperCase();
+        const base = (suppliers.find(s=>s.name===sup)||{lead:7}).lead;
+        const predicted = Math.max(2, Math.round(base + (Math.random()*4-2)));
+        hubOut.innerHTML = `<b>${predicted} days</b> expected for <b>${sku}</b> via <b>${sup}</b>.`;
+      }
+      if(t==='recommend'){
+        const sku = (document.getElementById('hub_sku').value||'SKU').toUpperCase();
+        const best = [...suppliers].sort((a,b)=>(b.otif - a.otif) - (a.lead - b.lead))[0];
+        hubOut.innerHTML = `Recommend <b>${best.name}</b> (OTIF ${best.otif}%, Lead ${best.lead}d) for <b>${sku}</b>.`;
+      }
+      if(t==='risk'){
+        const sup = document.getElementById('hub_sup').value;
+        const s = suppliers.find(x=>x.name===sup);
+        const score = Math.min(100, Math.round(40 + (100-s.otif) + s.defect*10 + (s.lead>10?10:0)));
+        const label = score>70?'High':score>50?'Medium':'Low';
+        hubOut.innerHTML = `Risk score for <b>${s.name}</b>: <b>${score}</b> (${label}).`;
+      }
+      if(t==='price_anomaly'){
+        const sku = (document.getElementById('hub_sku').value||'SKU').toUpperCase();
+        const price = parseFloat(document.getElementById('hub_price').value||'0');
+        if(!price){ hubOut.textContent='Enter a valid price'; return; }
+        const avg = 100;
+        const diff = Math.round((price-avg)/avg*100);
+        const flag = Math.abs(diff)>=15 ? '⚠️ Anomaly' : '✓ Normal';
+        hubOut.innerHTML = `${flag}: ${diff}% vs baseline for <b>${sku}</b>.`;
+      }
+      if(t==='duplicate'){
+        const name = (document.getElementById('hub_name').value||'').toLowerCase();
+        const near = suppliers.filter(s=> s.name.toLowerCase().includes(name) && name.length>=3);
+        hubOut.innerHTML = near.length? `Possible duplicates: <b>${near.map(s=>s.name).join(', ')}</b>` : 'No duplicates detected.';
+      }
+      if(t==='po_summary'){
+        const txt = (document.getElementById('hub_text').value||'').trim();
+        if(!txt){ hubOut.textContent='Paste an email text.'; return; }
+        const lines = txt.split(/\n/).slice(0,3).join(' ').slice(0,160);
+        hubOut.innerHTML = `Summary: ${lines}…`;
+      }
+      if(t==='expiry'){
+        const soon = suppliers.filter(s=> new Date(s.certExpiry) - new Date() < 60*24*3600*1000);
+        hubOut.innerHTML = soon.length? `Expiring soon: <b>${soon.map(s=>`${s.name} (${s.certExpiry})`).join(', ')}</b>` : 'No expiries within 60 days.';
+      }
+      if(t==='otif_forecast'){
+        const sup = document.getElementById('hub_sup').value;
+        const s = suppliers.find(x=>x.name===sup);
+        const next = Math.max(70, Math.min(99, Math.round(s.otif + (Math.random()*6-3))));
+        hubOut.innerHTML = `Forecast OTIF for <b>${s.name}</b> next month: <b>${next}%</b>.`;
+      }
+      if(t==='reallocate'){
+        const risky = [...suppliers].sort((a,b)=> (b.defect - a.defect) + (a.otif - b.otif)).slice(0,1)[0];
+        const safe = [...suppliers].sort((a,b)=> (a.defect - b.defect) + (b.otif - a.otif)).slice(0,1)[0];
+        hubOut.innerHTML = `Shift <b>20%</b> volume from <b>${risky.name}</b> to <b>${safe.name}</b> to reduce risk.`;
+      }
+    });
+
+    /* ===== Initialize ===== */
+    document.getElementById('btnAdd').addEventListener('click', ()=>openModal());
+    document.getElementById('btnCancel').addEventListener('click', ()=>modal.classList.remove('show'));
+    document.addEventListener('click',(e)=>{ 
+      if(e.target===modal) modal.classList.remove('show');
+      if(e.target===document.getElementById('viewModal')) document.getElementById('viewModal').classList.remove('show');
+    });
+
+    function init(){
+      render();
+      updateCharts();
+      initHubInputs();
+    }
+    init();
+  </script>
+</body>
+</html>

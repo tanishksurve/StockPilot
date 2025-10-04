@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StockPilot • Inventory</title>
+
+  <!-- Icons & PDF libs -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --accent:#4534d9;
+      --light-bg:#f8f9fa;
+      --card-bg:#ffffff;
+      --text:#1e1e1e;
+      --muted:#666;
+      --radius:12px;
+      --stock-in:#3CB371;
+      --stock-out:#FF6347;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:'Segoe UI',sans-serif; background:var(--light-bg); color:var(--text);
+      display:flex; min-height:100vh;
+    }
+
+    /* Sidebar (sticky; overlays on small) */
+    aside{
+      width:220px; background:#fff; border-right:1px solid #ddd;
+      position:fixed; inset:0 auto 0 0; z-index:1500; padding:20px 0;
+      display:flex; flex-direction:column; justify-content:space-between;
+      transition:width .3s ease;
+      box-shadow:2px 0 10px rgba(0,0,0,.05);
+    }
+    .side-top{display:flex; flex-direction:column; gap:18px}
+    .logo-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 20px;
+    }
+    .logo-img {
+      width: 55px;
+      height: 55px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    aside h2{margin:0; color:var(--accent)}
+    .side-item{
+      display:flex; align-items:center; gap:12px; padding:12px 24px;
+      cursor:pointer; color:var(--text); text-decoration:none;
+    }
+    .side-item i{min-width:20px; text-align:center; font-size:18px; transition:.2s}
+    .side-item:hover{background:#f5f5f5}
+    .side-item:hover i{color:var(--accent)}
+    .side-divider{border-top:1px solid #eee; margin:10px 20px}
+    .active{background:#f5f5ff}
+    .active i,.active span{color:var(--accent)}
+
+    /* Main / Topbar */
+    main{flex:1; margin-left:220px; padding:30px; transition:margin-left .3s ease}
+    header{
+      position:relative; display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:28px; z-index:1000;
+    }
+    header h1{margin:0; font-size:24px}
+    .head-right{display:flex; align-items:center; gap:20px}
+
+    /* Notifications */
+    .notify{position:relative; z-index:1200}
+    .notify .bell{font-size:20px; cursor:pointer; position:relative}
+    .badge{position:absolute; top:-6px; right:-6px; background:#f44336; color:#fff; width:18px; height:18px; border-radius:50%;
+      font-size:10px; display:flex; align-items:center; justify-content:center}
+    .panel{
+      position:absolute; top:34px; right:0; width:340px; background:#fff; border-radius:var(--radius);
+      box-shadow:0 10px 24px rgba(0,0,0,.18); display:none; overflow:hidden; z-index:1600;
+    }
+    .panel.show{display:block}
+    .panel h4{margin:0; padding:12px 14px; border-bottom:1px solid #eee}
+    .note{padding:12px 14px; border-bottom:1px solid #eee}
+    .note .time{font-size:12px; color:var(--muted); margin-top:4px}
+    .panel a{display:block; text-align:center; padding:10px; color:var(--accent); text-decoration:none}
+    .avatar{width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff;
+      display:flex; align-items:center; justify-content:center; font-weight:700}
+
+    /* Stat cards (responsive) */
+    .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:26px}
+    @media (max-width:1200px){ .stats{grid-template-columns:repeat(3,1fr)} }
+    @media (max-width:900px){ .stats{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width:576px){ .stats{grid-template-columns:1fr} }
+    .card{
+      background:var(--card-bg); border-radius:16px; padding:18px; position:relative; overflow:hidden;
+      box-shadow:0 2px 6px rgba(0,0,0,.05); transition:.25s;
+    }
+    .card:hover{transform:translateY(-3px); box-shadow:0 6px 16px rgba(0,0,0,.08)}
+    .card h3{margin:0 0 10px 0; font-size:16px; color:var(--muted)}
+    .card p{margin:0; font-size:clamp(20px,3.5vw,28px); font-weight:700}
+    .delta{font-size:13px; margin-top:4px}
+    .card .icon{position:absolute; top:14px; right:14px; font-size:22px; opacity:.18; transition:.25s}
+    .card:hover .icon{opacity:.9}
+    .c1{background:linear-gradient(145deg,#eef3ff,#ffffff)}
+    .c2{background:linear-gradient(145deg,#effaf4,#ffffff)}
+    .c3{background:linear-gradient(145deg,#fff6f6,#ffffff)}
+    .c4{background:linear-gradient(145deg,#fffbee,#ffffff)}
+
+    /* Card shells (Filters + Products) */
+    .card-shell{
+      background:#fff; border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,.06);
+      padding:18px; margin-bottom:20px;
+    }
+    .card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+    .card-title{font-weight:600; font-size:18px}
+    .head-actions{display:flex; gap:8px}
+    .icon-btn{width:34px; height:34px; border-radius:50%; border:1px solid #ddd; background:#fff;
+      display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:#666}
+    .icon-btn:hover{background:var(--accent); color:#fff; border-color:var(--accent)}
+    .icon-btn i{pointer-events:none}
+
+    /* Filters */
+    .input, .select{padding:10px 12px; border:1px solid #ddd; border-radius:10px; background:#fff; min-width:180px}
+    .filters-row{display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:12px}
+    @media (max-width:900px){ .filters-row{grid-template-columns:1fr 1fr} }
+    @media (max-width:520px){ .filters-row{grid-template-columns:1fr} }
+    .apply-btn{background:#4534d9; color:#fff; border:none; border-radius:10px; padding:12px 16px; cursor:pointer; font-weight:600}
+    .apply-btn:hover{opacity:.95}
+
+    /* Table */
+    .table-wrap{background:#fff; border-radius:12px; overflow:auto}
+    table{width:100%; border-collapse:collapse; min-width:900px}
+    th,td{padding:12px 14px; border-bottom:1px solid #eee; text-align:left}
+    th{background:#f1f1f1}
+    .chip{padding:6px 10px; border-radius:8px; background:#f6f6ff; color:var(--accent); font-size:12px}
+
+    /* Overview charts */
+    .section-title{font-size:20px; font-weight:600; margin:26px 0 14px}
+    .overview{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px; margin-bottom:24px}
+    .chart-box{background:#fff; border-radius:12px; box-shadow:0 2px 6px rgba(0,0,0,.05); padding:16px; position:relative}
+    .chart-box h4{text-align:center; margin:0 0 6px}
+    .chart-actions{position:absolute; top:12px; right:12px}
+
+    /* Donut: keep it circular and centered */
+    .donut-wrap{
+      width: 290px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 8px 0;
+    }
+    #statusChart{
+      width: 100% !important;
+      height: auto !important;
+      display: block;
+    }
+
+    /* Modal */
+    .modal{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:2000}
+    .modal.show{display:flex}
+    .modal-card{background:#fff; border-radius:14px; width:min(520px,92vw); padding:18px}
+    .modal-card h3{margin-top:0}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .grid .full{grid-column:1/-1}
+    .field{display:flex; flex-direction:column; gap:6px}
+    .field input, .field select{padding:10px 12px; border:1px solid #ddd; border-radius:10px}
+    .modal-actions{display:flex; justify-content:flex-end; gap:10px; margin-top:12px}
+
+    /* Print */
+    @media print{
+      body *{visibility:hidden}
+      #print-area, #print-area *{visibility:visible}
+      #print-area{position:absolute; left:0; top:0; width:100%}
+    }
+
+    /* Small-screen behavior (sidebar overlays) */
+    @media (max-width: 992px){
+      aside{width:60px; z-index:2000}
+      aside h2, .side-item span{display:none}
+      .side-item{justify-content:center; padding:14px}
+      main{margin-left:60px}
+      aside:hover, aside:focus-within{width:220px; box-shadow:2px 0 15px rgba(0,0,0,.15)}
+      aside:hover h2, aside:hover .side-item span,
+      aside:focus-within h2, aside:focus-within .side-item span{display:inline}
+      aside:hover .side-item, aside:focus-within .side-item{justify-content:flex-start; padding:12px 24px}
+    }
+    @media (max-width:768px){
+      header{flex-direction:column; align-items:flex-start; gap:10px}
+      .head-right{width:100%; justify-content:space-between}
+    }
+    @media (max-width:576px){
+      main{padding:24px 16px}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar (now fully linked) -->
+  <aside id="sidebar">
+    <div class="side-top">
+      <div class="logo-container">
+        <img src="Logo.jpeg" alt="StockPilot Logo" class="logo-img">
+        <h2>StockPilot</h2>
+      </div>
+      <a class="side-item" href="dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+      <a class="side-item active" href="inventory.html"><i class="fas fa-boxes"></i><span>Inventory</span></a>
+      <a class="side-item" href="suppliers.html"><i class="fas fa-truck-loading"></i><span>Suppliers</span></a>
+      <a class="side-item" href="orders.html"><i class="fas fa-shopping-cart"></i><span>Orders</span></a>
+      <a class="side-item" href="reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a>
+      <a class="side-item" href="settings.html"><i class="fas fa-cogs"></i><span>Settings</span></a>
+    </div>
+    <div>
+      <div class="side-divider"></div>
+      <a class="side-item" href="help.html"><i class="fas fa-question-circle"></i><span>Help & Docs</span></a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main>
+    <header>
+      <h1>Inventory</h1>
+      <div class="head-right">
+        <!-- Notifications -->
+        <div class="notify">
+          <i class="fas fa-bell bell" id="bell"></i>
+          <span class="badge" id="badge">3</span>
+          <div class="panel" id="panel">
+            <h4>Notifications</h4>
+            <div class="note">
+              <div>Low stock alert: Product B</div>
+              <div class="time">2m ago</div>
+            </div>
+            <div class="note">
+              <div>Supplier updated: ABC Traders</div>
+              <div class="time">30m ago</div>
+            </div>
+            <div class="note">
+              <div>New item added: Product F</div>
+              <div class="time">1h ago</div>
+            </div>
+            <a href="#">View All</a>
+          </div>
+        </div>
+        <div class="avatar">TS</div>
+      </div>
+    </header>
+
+    <!-- KPIs -->
+    <section class="stats">
+      <div class="card c1">
+        <i class="fas fa-boxes icon"></i>
+        <h3>Total Products</h3>
+        <p id="totalProducts">0</p>
+        <div class="delta" style="color:#388e3c">+10%</div>
+      </div>
+      <div class="card c2">
+        <i class="fas fa-exclamation-triangle icon"></i>
+        <h3>Low Stock</h3>
+        <p id="lowStockCount">0</p>
+        <div class="delta" style="color:#d32f2f">Check thresholds</div>
+      </div>
+      <div class="card c3">
+        <i class="fas fa-arrow-trend-up icon"></i>
+        <h3>Stock In (7d)</h3>
+        <p id="stockInSum" style="color:var(--stock-in)">0</p>
+        <div class="delta" style="color:#388e3c">Healthy inflow</div>
+      </div>
+      <div class="card c4">
+        <i class="fas fa-arrow-trend-down icon"></i>
+        <h3>Stock Out (7d)</h3>
+        <p id="stockOutSum" style="color:var(--stock-out)">0</p>
+        <div class="delta">Monitor demand</div>
+      </div>
+    </section>
+
+    <!-- Filters Card -->
+    <section class="card-shell">
+      <div class="card-head">
+        <div class="card-title">Filter Products</div>
+      </div>
+      <div class="filters-row">
+        <input class="input" id="search" placeholder="Search name / SKU" />
+        <select class="select" id="filterCategory">
+          <option value="">All Categories</option>
+          <option>Electronics</option>
+          <option>Groceries</option>
+          <option>Clothing</option>
+        </select>
+        <select class="select" id="filterSupplier">
+          <option value="">All Suppliers</option>
+          <option>ABC Traders</option>
+          <option>FreshFoods</option>
+          <option>TexWorld</option>
+        </select>
+        <button class="apply-btn" id="applyFilters">Apply Filters</button>
+      </div>
+    </section>
+
+    <!-- Products Card with icon actions -->
+    <section class="card-shell" id="print-area">
+      <div class="card-head">
+        <div class="card-title">Products</div>
+        <div class="head-actions">
+          <button class="icon-btn" id="btnAdd" title="Add Item"><i class="fas fa-plus"></i></button>
+          <button class="icon-btn" id="btnExport" title="Export CSV"><i class="fas fa-file-export"></i></button>
+          <button class="icon-btn" id="btnPrint" title="Print"><i class="fas fa-print"></i></button>
+          <button class="icon-btn" id="btnPDF" title="Download PDF"><i class="fas fa-file-pdf"></i></button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="invTable">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Supplier</th>
+              <th>Qty</th>
+              <th>Min Level</th>
+              <th>Status</th>
+              <th>Location</th>
+              <th>Last Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="invBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Overview -->
+    <h2 class="section-title">Overview</h2>
+    <section class="overview">
+      <div class="chart-box">
+        <h4>Inventory Status</h4>
+        <div class="chart-actions">
+          <button class="icon-btn" id="pdfStatus" title="Download PDF"><i class="fas fa-download"></i></button>
+        </div>
+        <div class="donut-wrap">
+          <canvas id="statusChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-box">
+        <h4>Stock Movement (7 days)</h4>
+        <div class="chart-actions">
+          <button class="icon-btn" id="pdfMove" title="Download PDF"><i class="fas fa-download"></i></button>
+        </div>
+        <canvas id="moveChart" height="180"></canvas>
+      </div>
+    </section>
+
+    <footer style="text-align:center; color:var(--muted); margin-top:10px">© 2025 StockPilot. All rights reserved.</footer>
+  </main>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal" id="modal">
+    <div class="modal-card">
+      <h3 id="modalTitle">Add Item</h3>
+      <div class="grid">
+        <div class="field">
+          <label>Product</label>
+          <input id="fName" placeholder="e.g., LED TV">
+        </div>
+        <div class="field">
+          <label>SKU</label>
+          <input id="fSKU" placeholder="e.g., EL-TV-42">
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="fCat">
+            <option>Electronics</option><option>Groceries</option><option>Clothing</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Supplier</label>
+          <select id="fSup">
+            <option>ABC Traders</option><option>FreshFoods</option><option>TexWorld</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Quantity</label>
+          <input id="fQty" type="number" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Min Level</label>
+          <input id="fMin" type="number" min="0" value="10">
+        </div>
+        <div class="field full">
+          <label>Location</label>
+          <input id="fLoc" placeholder="Aisle / Rack / Shelf">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="icon-btn" id="btnCancel" title="Cancel"><i class="fas fa-times"></i></button>
+        <button class="icon-btn" id="btnSave" title="Save"><i class="fas fa-check"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Notifications ----------
+    const bell = document.getElementById('bell');
+    const panel = document.getElementById('panel');
+    bell.addEventListener('click', (e)=>{ e.stopPropagation(); panel.classList.toggle('show'); });
+    document.addEventListener('click', ()=> panel.classList.remove('show'));
+    panel.addEventListener('click', (e)=> e.stopPropagation());
+
+    // ---------- Data & persistence ----------
+    const LS_KEY = 'stockpilot_inventory';
+    let editIndex = -1;
+
+    let items = JSON.parse(localStorage.getItem(LS_KEY) || 'null') || [
+      {name:'LED TV 42"', sku:'EL-TV-42', cat:'Electronics', sup:'ABC Traders', qty:18, min:10, loc:'A1-R2-S3', date:'2025-07-25'},
+      {name:'Apple (Box)', sku:'GR-APL', cat:'Groceries', sup:'FreshFoods', qty:6, min:12, loc:'C2-R4-S1', date:'2025-07-27'},
+      {name:'T-Shirt - M', sku:'CL-TS-M', cat:'Clothing', sup:'TexWorld', qty:0, min:8, loc:'B3-R2-S6', date:'2025-07-22'},
+      {name:'Bluetooth Headphones', sku:'EL-BH-100', cat:'Electronics', sup:'ABC Traders', qty:37, min:15, loc:'A2-R1-S2', date:'2025-07-26'}
+    ];
+    function saveItems(){ localStorage.setItem(LS_KEY, JSON.stringify(items)); }
+
+    // ---------- Elements ----------
+    const invBody = document.getElementById('invBody');
+    const search = document.getElementById('search');
+    const filterCategory = document.getElementById('filterCategory');
+    const filterSupplier = document.getElementById('filterSupplier');
+    document.getElementById('applyFilters').addEventListener('click', render);
+
+    const modal = document.getElementById('modal');
+    const modalTitle = document.getElementById('modalTitle');
+    const fName = document.getElementById('fName');
+    const fSKU  = document.getElementById('fSKU');
+    const fCat  = document.getElementById('fCat');
+    const fSup  = document.getElementById('fSup');
+    const fQty  = document.getElementById('fQty');
+    const fMin  = document.getElementById('fMin');
+    const fLoc  = document.getElementById('fLoc');
+
+    // ---------- Helpers ----------
+    function statusFor(it){
+      if (it.qty <= 0) return '<span class="chip" style="background:#fff0f0;color:var(--stock-out)">Out</span>';
+      if (it.qty < it.min) return '<span class="chip" style="background:#fff8e7;color:#b8860b">Low</span>';
+      return '<span class="chip" style="background:#eefaf2;color:var(--stock-in)">In</span>';
+    }
+    function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+    // ---------- Render ----------
+    function render(){
+      const kw = (search.value||'').toLowerCase();
+      const cat = filterCategory.value;
+      const sup = filterSupplier.value;
+
+      const rows = [];
+      items.forEach((it, idxOrig)=>{
+        const txt = (it.name+' '+it.sku).toLowerCase();
+        const okKw = !kw || txt.includes(kw);
+        const okCat = !cat || it.cat===cat;
+        const okSup = !sup || it.sup===sup;
+        if(okKw && okCat && okSup) rows.push({it, idx: idxOrig});
+      });
+
+      invBody.innerHTML = rows.map(({it,idx})=>`
+        <tr data-idx="${idx}">
+          <td>${it.name}</td>
+          <td>${it.sku}</td>
+          <td>${it.cat}</td>
+          <td>${it.sup}</td>
+          <td>${it.qty}</td>
+          <td>${it.min}</td>
+          <td>${statusFor(it)}</td>
+          <td>${it.loc}</td>
+          <td>${it.date}</td>
+          <td style="display:flex; gap:8px; flex-wrap:wrap">
+            <button class="icon-btn btn-edit" title="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn btn-del"  title="Delete"><i class="fas fa-trash"></i></button>
+          </td>
+        </tr>
+      `).join('');
+
+      // Row actions
+      invBody.querySelectorAll('.btn-edit').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const idx = parseInt(e.currentTarget.closest('tr').dataset.idx, 10);
+          onEdit(idx);
+        });
+      });
+      invBody.querySelectorAll('.btn-del').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const idx = parseInt(e.currentTarget.closest('tr').dataset.idx, 10);
+          onDelete(idx);
+        });
+      });
+
+      // KPIs
+      document.getElementById('totalProducts').textContent = items.length;
+      document.getElementById('lowStockCount').textContent =
+        items.filter(i=>i.qty>0 && i.qty<i.min).length + items.filter(i=>i.qty<=0).length;
+
+      const in7 = Math.max(0, items.reduce((a,b)=>a+(b.qty> b.min? Math.round(b.qty*0.1):0),0));
+      const out7= Math.max(0, items.reduce((a,b)=>a+(b.qty< b.min? Math.round((b.min-b.qty)*0.2):0),0));
+      document.getElementById('stockInSum').textContent = in7;
+      document.getElementById('stockOutSum').textContent= out7;
+
+      updateCharts();
+    }
+
+    // ---------- CRUD ----------
+    function openModal(edit=false, idx=-1){
+      modal.classList.add('show');
+      if(edit){
+        modalTitle.textContent='Edit Item';
+        const it=items[idx];
+        fName.value=it.name; fSKU.value=it.sku; fCat.value=it.cat; fSup.value=it.sup;
+        fQty.value=it.qty; fMin.value=it.min; fLoc.value=it.loc;
+        editIndex=idx;
+      }else{
+        modalTitle.textContent='Add Item';
+        [fName,fSKU,fQty,fMin,fLoc].forEach(i=>i.value='');
+        fCat.value='Electronics'; fSup.value='ABC Traders'; fQty.value=0; fMin.value=10;
+        editIndex=-1;
+      }
+    }
+    function closeModal(){ modal.classList.remove('show'); }
+    function onEdit(idx){ openModal(true, idx); }
+    function onDelete(idx){
+      if(confirm('Delete this item?')){ items.splice(idx,1); saveItems(); render(); }
+    }
+    document.getElementById('btnAdd').addEventListener('click', ()=>openModal());
+    document.getElementById('btnCancel').addEventListener('click', closeModal);
+    document.getElementById('btnSave').addEventListener('click', ()=>{
+      const it = {
+        name:fName.value.trim(), sku:fSKU.value.trim(), cat:fCat.value, sup:fSup.value,
+        qty:parseInt(fQty.value||'0',10), min:parseInt(fMin.value||'0',10),
+        loc:fLoc.value.trim(), date:todayStr()
+      };
+      if(!it.name||!it.sku){ alert('Name and SKU are required'); return; }
+      if(editIndex>-1){ items[editIndex]=it; } else { items.push(it); }
+      saveItems(); closeModal(); render();
+    });
+    modal.addEventListener('click',(e)=>{ if(e.target===modal) closeModal(); });
+
+    [search,filterCategory,filterSupplier].forEach(el=> el.addEventListener('input', render));
+
+    // ---------- Charts ----------
+    let statusChart, moveChart;
+    function updateCharts(){
+      const inStock  = items.filter(i=>i.qty>=i.min && i.qty>0).length;
+      const lowStock = items.filter(i=>i.qty>0 && i.qty<i.min).length;
+      const outStock = items.filter(i=>i.qty<=0).length;
+
+      const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const stockInSeries  = days.map((_,k)=> Math.max(0, Math.round((inStock+lowStock)*0.4 + (k%3)*2)));
+      const stockOutSeries = days.map((_,k)=> Math.max(0, Math.round((outStock+lowStock)*0.5 + ((k+1)%3)*2)));
+
+      // Donut: circle
+      const ctx1 = document.getElementById('statusChart').getContext('2d');
+      if(statusChart) statusChart.destroy();
+      statusChart = new Chart(ctx1,{
+        type:'doughnut',
+        data:{
+          labels:['In Stock','Low Stock','Out of Stock'],
+          datasets:[{
+            data:[inStock, lowStock, outStock],
+            backgroundColor:['#4caf50','#ffc107','#e53935'],
+            borderWidth:1
+          }]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:true,
+          aspectRatio:1,
+          cutout:'62%',
+          plugins:{ legend:{ position:'bottom' } }
+        }
+      });
+
+      // Movement line
+      const ctx2 = document.getElementById('moveChart').getContext('2d');
+      if(moveChart) moveChart.destroy();
+      moveChart = new Chart(ctx2,{
+        type:'line',
+        data:{
+          labels:days,
+          datasets:[
+            {label:'Stock In', data:stockInSeries, borderColor:getVar('--stock-in'), backgroundColor:'transparent', tension:.35},
+            {label:'Stock Out', data:stockOutSeries, borderColor:getVar('--stock-out'), backgroundColor:'transparent', tension:.35}
+          ]
+        },
+        options:{ plugins:{ legend:{ position:'bottom' } } }
+      });
+    }
+    function getVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+    // ---------- Export/Print/PDF ----------
+    document.getElementById('btnExport').addEventListener('click', ()=>{
+      const rows=[...document.querySelectorAll('#invTable tr')];
+      let csv=''; rows.forEach(r=>{
+        const cells=[...r.querySelectorAll('th,td')].map(td=> `"${td.textContent.replace(/"/g,'""')}"`);
+        csv += cells.join(',')+'\n';
+      });
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url=URL.createObjectURL(blob); const a=document.createElement('a');
+      a.href=url; a.download='StockPilot-Inventory.csv'; document.body.appendChild(a); a.click(); a.remove();
+    });
+    document.getElementById('btnPrint').addEventListener('click', ()=> window.print());
+    document.getElementById('btnPDF').addEventListener('click', ()=> downloadTablePDF());
+
+    function downloadTablePDF(){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFontSize(16); doc.text('Inventory Report',14,18);
+      const head=[['Product','SKU','Category','Supplier','Qty','Min','Status','Location','Last Updated']];
+      const body = items.map(i=>[
+        i.name, i.sku, i.cat, i.sup, i.qty, i.min,
+        (i.qty<=0?'Out':(i.qty<i.min?'Low':'In')),
+        i.loc, i.date
+      ]);
+      doc.autoTable({ head, body, startY:26, styles:{fontSize:9, cellPadding:2}, headStyles:{fillColor:[69,52,217], textColor:255} });
+      doc.save('StockPilot-Inventory.pdf');
+    }
+
+    document.getElementById('pdfStatus').addEventListener('click', ()=> downloadChartPDF('statusChart','Inventory Status'));
+    document.getElementById('pdfMove').addEventListener('click', ()=> downloadChartPDF('moveChart','Stock Movement (7 days)'));
+    function downloadChartPDF(id,title){
+      const { jsPDF } = window.jspdf; const doc=new jsPDF();
+      const canvas = document.getElementById(id);
+      const img = canvas.toDataURL('image/png');
+      doc.setFontSize(16); doc.text(title,14,18);
+      doc.addImage(img,'PNG',15,26,180,110);
+      doc.save(`${title.replace(/\s+/g,'_')}.pdf`);
+    }
+
+    // ---------- Init ----------
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>StockPilot • Help & Docs</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <style>
+    :root{
+      --accent:#4534d9;
+      --light-bg:#f8f9fa;
+      --card-bg:#ffffff;
+      --text:#1e1e1e;
+      --muted:#666;
+      --radius:12px;
+      --border:#e7e9ee;
+      --active-bg:#f5f5ff;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:'Segoe UI',system-ui,Roboto,Arial,sans-serif;
+      background:var(--light-bg); color:var(--text); display:flex; min-height:100vh;
+    }
+
+    /* ===== Sidebar (same behavior as Settings) ===== */
+    aside{
+      width:220px; background:#fff; border-right:1px solid var(--border);
+      position:fixed; inset:0 auto 0 0; z-index:1500; padding:20px 0;
+      display:flex; flex-direction:column; justify-content:space-between;
+      transition:width .3s ease; box-shadow:2px 0 10px rgba(0,0,0,.05);
+    }
+    .side-top{display:flex; flex-direction:column; gap:18px}
+    .brand{
+      display:flex; align-items:center; justify-content:center; gap:10px; padding:0 20px;
+    }
+    .brand img{width:55px; height:55px; border-radius:50%; object-fit:cover;; padding:4px}
+    .brand span{font-weight:700; color:var(--accent); font-size:20px}
+
+    .navlink{
+      display:flex; align-items:center; gap:12px; padding:12px 24px;
+      color:var(--text); text-decoration:none; white-space:nowrap;
+      transition:background .2s ease, color .2s ease;
+    }
+    .navlink i{min-width:20px; text-align:center; font-size:18px; color:#111}
+    .navlink:hover{background:#f5f5f5}
+    .navlink:hover i{color:var(--accent)}
+    .navlink.active{background:var(--active-bg)}
+    .navlink.active i, .navlink.active span{color:var(--accent); font-weight:600}
+    .divider{border-top:1px solid var(--border); margin:10px 20px}
+
+    /* Collapse to icon-only; expand on hover (no logo border on small) */
+    @media (max-width:992px){
+      aside{width:60px; z-index:2000}
+      .brand span, .navlink span{display:none}
+      .navlink{justify-content:center; padding:14px}
+      .brand img{border:none; padding:0}
+      main{margin-left:60px}
+
+      aside:hover, aside:focus-within{width:220px; box-shadow:2px 0 15px rgba(0,0,0,.12)}
+      aside:hover .brand span, aside:hover .navlink span,
+      aside:focus-within .brand span, aside:focus-within .navlink span{display:inline}
+      aside:hover .navlink, aside:focus-within .navlink{justify-content:flex-start; padding:12px 24px}
+    }
+
+    /* ===== Main / Topbar ===== */
+    main{flex:1; margin-left:220px; padding:30px; transition:margin-left .3s ease}
+    header{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; gap:16px}
+    .title{font-size:24px; font-weight:800; margin:0}
+    .topbar-right{display:flex; align-items:center; gap:12px}
+    .avatar{width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700}
+    @media (max-width:576px){ main{padding:24px 16px} }
+
+    /* Notifications drop panel */
+    .notify{position:relative}
+    .notify .bell{font-size:20px; cursor:pointer}
+    .badge{position:absolute; top:-6px; right:-6px; background:#f44336; color:#fff; width:18px; height:18px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center; font-size:10px}
+    .panel{position:absolute; top:34px; right:0; width:330px; background:#fff; border-radius:12px; box-shadow:0 10px 24px rgba(0,0,0,.18); display:none; overflow:hidden; z-index:1600}
+    .panel.show{display:block}
+    .panel h4{margin:0; padding:12px 14px; border-bottom:1px solid var(--border)}
+    .note{padding:12px 14px; border-bottom:1px solid var(--border)}
+    .note .time{font-size:12px; color:var(--muted)}
+    .panel a{display:block; text-align:center; padding:10px; color:var(--accent); text-decoration:none}
+
+    /* ===== Help layout ===== */
+    .help-container{display:grid; grid-template-columns:300px 1fr; gap:30px}
+    @media (max-width:992px){ .help-container{grid-template-columns:1fr} }
+
+    .help-sidebar{background:#fff; border:1px solid var(--border); border-radius:16px; padding:20px; height:fit-content; position:sticky; top:20px}
+    .help-categories{list-style:none; margin:0; padding:0}
+    .help-category{padding:12px 0; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-weight:500}
+    .help-category:last-child{border-bottom:none}
+    .help-category:hover, .help-category.active{color:var(--accent)}
+
+    .help-content{background:#fff; border:1px solid var(--border); border-radius:16px; padding:30px}
+    .help-section{margin-bottom:40px}
+    .help-section h2{color:var(--accent); margin-top:0; padding-bottom:10px; border-bottom:1px solid #eee}
+
+    .help-article{margin-bottom:25px; padding-bottom:25px; border-bottom:1px solid #f5f5f5}
+    .help-article:last-child{margin-bottom:0; padding-bottom:0; border-bottom:none}
+    .help-article h3{margin:0 0 10px; font-size:18px; display:flex; align-items:center}
+    .help-article h3 i{margin-right:10px; color:var(--accent)}
+    .help-article p{margin:0 0 14px; color:var(--muted)}
+    .help-article ul{padding-left:20px; color:var(--muted)}
+    .help-article li{margin:6px 0}
+
+    /* FAQ accordion */
+    .faq-item{margin-bottom:15px; border:1px solid #eee; border-radius:12px; overflow:hidden}
+    .faq-question{padding:15px 20px; background:#f9f9ff; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:500}
+    .faq-question:hover{background:#f0f0ff}
+    .faq-question i{transition:transform .3s}
+    .faq-item.active .faq-question i{transform:rotate(180deg)}
+    .faq-answer{padding:0 20px; max-height:0; overflow:hidden; transition:max-height .3s, padding .3s}
+    .faq-item.active .faq-answer{padding:15px 20px; max-height:1000px}
+
+    /* Contact */
+    .contact-card{background:#f9f9ff; border:1px solid #eee; border-radius:16px; padding:20px; margin-top:30px}
+    .contact-methods{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px; margin-top:16px}
+    .contact-method{display:flex; gap:12px; align-items:center}
+    .contact-icon{width:40px; height:40px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center}
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside>
+    <div class="side-top">
+      <a class="brand"aria-label="StockPilot Home">
+        <img src="Logo.jpeg" alt="StockPilot Logo"><span>StockPilot</span>
+      </a>
+
+      <a class="navlink" href="dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+      <a class="navlink" href="inventory.html"><i class="fas fa-boxes"></i><span>Inventory</span></a>
+      <a class="navlink" href="suppliers.html"><i class="fas fa-truck-loading"></i><span>Suppliers</span></a>
+      <a class="navlink" href="orders.html"><i class="fas fa-shopping-cart"></i><span>Orders</span></a>
+      <a class="navlink" href="reports.html"><i class="fas fa-file-alt"></i><span>Reports</span></a>
+      <a class="navlink" href="settings.html"><i class="fas fa-cogs"></i><span>Settings</span></a>
+    </div>
+    <div>
+      <div class="divider"></div>
+      <a class="navlink active" href="help.html"><i class="fas fa-question-circle"></i><span>Help & Docs</span></a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main>
+    <!-- Topbar -->
+    <header>
+      <h1 class="title">Help & Documentation</h1>
+      <div class="topbar-right">
+        <div class="notify">
+          <i class="fas fa-bell bell" id="bell"></i>
+          <span class="badge" id="badge">4</span>
+          <div class="panel" id="panel">
+            <h4>Help Center Notifications</h4>
+            <div class="note"><div>📘 New article: “Set up low‑stock alerts step by step”.</div><div class="time">Just now</div></div>
+            <div class="note"><div>🧭 Getting‑Started guide updated with screenshots.</div><div class="time">2h ago</div></div>
+            <div class="note"><div>⚠️ Known issue: CSV import fails on Excel 2016 — workaround posted.</div><div class="time">Yesterday</div></div>
+            <div class="note"><div>🎥 Webinar recording: “Picking & putaway best practices”.</div><div class="time">2 days ago</div></div>
+            <a href="#">Open Help Center</a>
+          </div>
+        </div>
+        <div class="avatar">TS</div>
+      </div>
+    </header>
+
+    <!-- Help content -->
+    <div class="help-container">
+      <!-- Left: categories -->
+      <div class="help-sidebar">
+        <ul class="help-categories">
+          <li class="help-category active">Getting Started <i class="fas fa-chevron-right"></i></li>
+          <li class="help-category">Inventory Management <i class="fas fa-chevron-right"></i></li>
+          <li class="help-category">Order Processing <i class="fas fa-chevron-right"></i></li>
+          <li class="help-category">Supplier Management <i class="fas fa-chevron-right"></i></li>
+          <li class="help-category">Reporting <i class="fas fa-chevron-right"></i></li>
+          <li class="help-category">User Management <i class="fas fa-chevron-right"></i></li>
+          <li class="help-category">Troubleshooting <i class="fas fa-chevron-right"></i></li>
+        </ul>
+      </div>
+
+      <!-- Right: articles -->
+      <div class="help-content">
+        <!-- Getting Started -->
+        <div class="help-section" data-category="Getting Started">
+          <h2>Getting Started</h2>
+
+          <div class="help-article">
+            <h3><i class="fas fa-user-plus"></i> Setting Up Your Account</h3>
+            <p>Learn how to set up your StockPilot account and configure your warehouse settings.</p>
+            <ul>
+              <li>Go to <b>Settings → Account</b> to update your profile</li>
+              <li>Configure your timezone and company profile</li>
+              <li>Set notification preferences</li>
+              <li>Invite team members to collaborate</li>
+            </ul>
+          </div>
+
+          <div class="help-article">
+            <h3><i class="fas fa-warehouse"></i> Add Your First Warehouse</h3>
+            <p>Step‑by‑step guide to adding your warehouse to the system.</p>
+            <ul>
+              <li>Open <b>Inventory → Warehouses</b></li>
+              <li>Click “Add Warehouse” and fill location/capacity</li>
+              <li>Configure storage zones and bins</li>
+            </ul>
+          </div>
+
+          <div class="help-article">
+            <h3><i class="fas fa-box-open"></i> Import Existing Inventory</h3>
+            <p>How to import your existing inventory into StockPilot.</p>
+            <ul>
+              <li>Download the CSV template</li>
+              <li>Fill in SKU, Name, Category, Min Stock, etc.</li>
+              <li>Upload and verify the results</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="help-section" data-category="Inventory Management" style="display:none">
+          <h2>Inventory Management</h2>
+          <div class="help-article">
+            <h3><i class="fas fa-boxes"></i> Track Inventory</h3>
+            <p>Monitor stock levels and movements in real time.</p>
+            <ul>
+              <li>View stock in/out history from Dashboard</li>
+              <li>Set reorder points for critical items</li>
+              <li>Generate low‑stock alerts</li>
+            </ul>
+          </div>
+          <div class="help-article">
+            <h3><i class="fas fa-upload"></i> Bulk Import/Export</h3>
+            <p>Upload or download inventory using CSV templates.</p>
+            <ul>
+              <li>Use the downloadable template format</li>
+              <li>Map fields correctly before uploading</li>
+              <li>Verify data integrity after upload</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Orders -->
+        <div class="help-section" data-category="Order Processing" style="display:none">
+          <h2>Order Processing</h2>
+          <div class="help-article">
+            <h3><i class="fas fa-shopping-cart"></i> Create Orders</h3>
+            <p>Place new orders and track fulfillment.</p>
+            <ul>
+              <li>Select products and quantities</li>
+              <li>Set delivery preferences</li>
+              <li>Track status: Pending → Shipped → Delivered</li>
+            </ul>
+          </div>
+          <div class="help-article">
+            <h3><i class="fas fa-check-circle"></i> Order Status</h3>
+            <p>Understand statuses and updates.</p>
+            <ul>
+              <li>Auto‑update via integrations</li>
+              <li>Manual override in Orders</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Suppliers -->
+        <div class="help-section" data-category="Supplier Management" style="display:none">
+          <h2>Supplier Management</h2>
+          <div class="help-article">
+            <h3><i class="fas fa-industry"></i> Add Suppliers</h3>
+            <p>Maintain supplier records and contacts.</p>
+            <ul>
+              <li>Suppliers → Add New</li>
+              <li>Enter contacts, categories, certifications</li>
+              <li>Link suppliers to SKUs</li>
+            </ul>
+          </div>
+          <div class="help-article">
+            <h3><i class="fas fa-sync-alt"></i> Sync Supplier Data</h3>
+            <p>Keep pricing and contracts up to date.</p>
+            <ul>
+              <li>Import/export via CSV</li>
+              <li>Update contracts and validity periods</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Reporting -->
+        <div class="help-section" data-category="Reporting" style="display:none">
+          <h2>Reporting</h2>
+          <div class="help-article">
+            <h3><i class="fas fa-chart-pie"></i> Inventory Reports</h3>
+            <p>Analyze turnover, aging, and stock valuation.</p>
+            <ul>
+              <li>Reports → Inventory</li>
+              <li>Select report type and range</li>
+              <li>Export to PDF/CSV</li>
+            </ul>
+          </div>
+          <div class="help-article">
+            <h3><i class="fas fa-chart-line"></i> Sales Reports</h3>
+            <p>Track revenue and order trends.</p>
+          </div>
+        </div>
+
+        <!-- Users -->
+        <div class="help-section" data-category="User Management" style="display:none">
+          <h2>User Management</h2>
+          <div class="help-article">
+            <h3><i class="fas fa-user-plus"></i> Add & Manage Users</h3>
+            <p>Control who has access to what.</p>
+          </div>
+          <div class="help-article">
+            <h3><i class="fas fa-user-shield"></i> Permissions</h3>
+            <p>Customize access levels and audit logs.</p>
+          </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="help-section" data-category="Troubleshooting" style="display:none">
+          <h2>Troubleshooting</h2>
+          <div class="help-article">
+            <h3><i class="fas fa-exclamation-triangle"></i> Common Errors</h3>
+            <p>Fix frequent issues quickly.</p>
+          </div>
+          <div class="help-article">
+            <h3><i class="fas fa-life-ring"></i> Contact Support</h3>
+            <p>Email: support@stockpilot.app · Live chat 9AM–5PM IST</p>
+          </div>
+        </div>
+
+        <!-- FAQ -->
+        <div class="help-section">
+          <h2>Frequently Asked Questions</h2>
+
+          <div class="faq-item">
+            <div class="faq-question">How do I reset my password? <i class="fas fa-chevron-down"></i></div>
+            <div class="faq-answer">
+              <p>Go to <b>Settings → Security</b> or use “Forgot Password” on the login page.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">How can I add users? <i class="fas fa-chevron-down"></i></div>
+            <div class="faq-answer">
+              <p>Open <b>Settings → Users</b>, click “Add User”, set role & permissions.</p>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <div class="faq-question">How do I generate reports? <i class="fas fa-chevron-down"></i></div>
+            <div class="faq-answer">
+              <p>Use the <b>Reports</b> page; export as CSV or PDF.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="contact-card">
+          <h3>Need More Help?</h3>
+          <p>Our support team is here to help.</p>
+          <div class="contact-methods">
+            <div class="contact-method">
+              <div class="contact-icon"><i class="fas fa-envelope"></i></div>
+              <div><div><b>Email</b></div><div class="muted">support@stockpilot.app</div></div>
+            </div>
+            <div class="contact-method">
+              <div class="contact-icon"><i class="fas fa-phone"></i></div>
+              <div><div><b>Phone</b></div><div class="muted">+91 80 0000 0000</div></div>
+            </div>
+            <div class="contact-method">
+              <div class="contact-icon"><i class="fas fa-comments"></i></div>
+              <div><div><b>Live Chat</b></div><div class="muted">Mon–Fri, 9AM–6PM IST</div></div>
+            </div>
+            <div class="contact-method">
+              <div class="contact-icon"><i class="fas fa-file-alt"></i></div>
+              <div><div><b>Docs</b></div><div class="muted">Complete guides & API</div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <footer style="color:#777; text-align:center; margin-top:16px">© 2025 StockPilot. All rights reserved.</footer>
+  </main>
+
+  <script>
+    /* Notifications */
+    const bell=document.getElementById('bell'), panel=document.getElementById('panel');
+    bell.addEventListener('click',(e)=>{e.stopPropagation(); panel.classList.toggle('show');});
+    document.addEventListener('click',()=>panel.classList.remove('show'));
+    panel.addEventListener('click',(e)=>e.stopPropagation());
+
+    /* Category switching */
+    document.querySelectorAll('.help-category').forEach(cat=>{
+      cat.addEventListener('click', ()=>{
+        document.querySelector('.help-category.active')?.classList.remove('active');
+        cat.classList.add('active');
+        const name = cat.childNodes[0].textContent.trim();
+        document.querySelectorAll('.help-section').forEach(s=>{
+          const show = s.dataset.category ? s.dataset.category===name : false;
+          if(s.dataset.category){ s.style.display = show ? 'block' : 'none'; }
+        });
+      });
+    });
+
+    /* FAQ accordion */
+    document.querySelectorAll('.faq-question').forEach(q=>{
+      q.addEventListener('click', ()=>{
+        const item=q.parentElement;
+        item.classList.toggle('active');
+      });
+    });
+  </script>
+</body>
+</html>

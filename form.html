@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sign In / Sign Up</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root {
+      --purple-start: #1f2f57;
+      --purple-end: #0f1e44;
+      --radius: 24px;
+      --transition: .6s cubic-bezier(0.7,0,0.3,1);
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      font-family: "Inter", system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+      background: #e8ecf7;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+    h1 { margin:0; font-size:2rem; font-weight:700; line-height:1.1; }
+    p { margin:8px 0 16px; font-size:0.9rem; line-height:1.4; }
+    a { color: #fff; text-decoration:none; cursor:pointer; font-weight:600; }
+    button { cursor:pointer; border:none; font-weight:600; font-size:0.9rem; border-radius:12px; }
+    input {
+      width:100%;
+      padding:14px 16px;
+      border:none;
+      border-bottom:2px solid rgba(255,255,255,0.1);
+      border-radius:8px;
+      background: rgba(255,255,255,0.9);
+      margin-top:10px;
+      font-size:0.95rem;
+      outline:none;
+      transition: box-shadow .2s ease, border-color .2s ease;
+    }
+    input:focus {
+      box-shadow: 0 0 16px rgba(255,255,255,0.5);
+      border-color: #fff;
+    }
+    label {
+      display:block;
+      font-size:0.75rem;
+      margin-top:12px;
+      font-weight:600;
+      color: #2b2b39;
+    }
+    .container {
+      width:100%;
+      max-width: 1000px;
+      position: relative;
+    }
+    .card {
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius);
+      display: flex;
+      background: #fff;
+      box-shadow: 0 50px 90px -20px rgba(0,0,0,0.15);
+      min-height: 580px;
+      transition: var(--transition);
+    }
+    /* Panels */
+    .panel {
+      flex:1;
+      position: relative;
+      display:flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 60px 50px;
+      color: #fff;
+      z-index:2;
+    }
+    .panel-purple {
+      background: linear-gradient(135deg, #1f2f57 0%, #0f1e44 100%);
+    }
+    .panel-white {
+      flex:1;
+      background: #f7f9fc;
+      color: #1d2438;
+      padding:60px 50px;
+      display:flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      z-index:2;
+    }
+    .btn-primary {
+      background: #0f1e44;
+      color: #fff;
+      padding:14px;
+      border-radius:50px;
+      width:160px;
+      letter-spacing:1px;
+      margin-top:16px;
+      align-self:flex-start;
+      transition: filter .2s ease;
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-outline {
+      background: transparent;
+      padding:12px 30px;
+      border:2px solid #fff;
+      border-radius:50px;
+      color:#fff;
+      font-weight:600;
+      margin-top:16px;
+      width:140px;
+      text-align:center;
+    }
+    .form {
+      width:100%;
+      max-width: 400px;
+    }
+    .field-group {
+      margin-bottom:4px;
+    }
+    .switch-text {
+      margin-top:12px;
+      font-size:0.85rem;
+      color:#555;
+    }
+    .link-toggle {
+      color:#0f1e44;
+      font-weight:600;
+      cursor:pointer;
+      text-decoration:none;
+    }
+    .checkbox-row {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:10px;
+    }
+    .checkbox-row input {
+      width:auto;
+      margin:0;
+    }
+    /* Slide logic */
+    .forms {
+      position: relative;
+      width: 100%;
+      display:flex;
+      overflow:hidden;
+    }
+    .form-panel {
+      min-width: 100%;
+      transition: var(--transition);
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+    .signin-mode .form-panel.signup {
+      transform: translateX(100%);
+    }
+    .signin-mode .form-panel.signin {
+      transform: translateX(0);
+    }
+    .signup-mode .form-panel.signup {
+      transform: translateX(0);
+    }
+    .signup-mode .form-panel.signin {
+      transform: translateX(-100%);
+    }
+    /* Overlay curved purple piece to match */
+    .curve {
+      position:absolute;
+      top:0;
+      bottom:0;
+      width: 50%;
+      pointer-events:none;
+      background: linear-gradient(135deg, #1f2f57 0%, #0f1e44 100%);
+      transition: var(--transition);
+      z-index:1;
+      border-radius: var(--radius);
+    }
+    .signin-mode .curve {
+      right:0;
+      clip-path: path("M0,0 H100% V100% Q60%50% 0 100% Z");
+    }
+    .signup-mode .curve {
+      left:0;
+      clip-path: path("M100%,0 H0 V100% Q40%50% 100% 0 Z");
+    }
+    /* Toast */
+    #toast-container {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display:flex;
+      flex-direction: column;
+      gap:10px;
+      z-index: 1000;
+    }
+    .toast {
+      background: rgba(15,30,68,0.95);
+      color: white;
+      padding:12px 16px;
+      border-radius:10px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-width:180px;
+      font-size:0.9rem;
+      position: relative;
+    }
+    .toast.success { background: #2d8f56; }
+    .toast.error { background: #c65353; }
+    .toast .close-btn {
+      margin-left:auto;
+      background:none;
+      border:none;
+      color: rgba(255,255,255,0.9);
+      font-size:16px;
+      cursor:pointer;
+    }
+    /* Responsive */
+    @media (max-width: 900px) {
+      .card {
+        flex-direction: column;
+      }
+      .panel {
+        padding: 40px 25px;
+      }
+      .curve {
+        display:none;
+      }
+      .btn-primary { width:100%; }
+      .btn-outline { width:100%; }
+    }
+    /* Accessibility focus */
+    button:focus, a:focus, input:focus {
+      outline: 2px solid rgba(108,99,255,0.6);
+      outline-offset:2px;
+    }
+  </style>
+</head>
+<body class="signin-mode" aria-label="Authentication form">
+  <div class="container">
+    <div class="card" aria-live="polite">
+      <!-- purple curve background piece -->
+      <div class="curve" aria-hidden="true"></div>
+
+      <!-- Sign-in form panel -->
+      <div class="forms" style="flex:1; display:flex; position:relative;">
+        <!-- Sign In -->
+        <div class="form-panel signin" aria-label="Sign In Form">
+          <div class="panel panel-white" aria-label="Sign In content">
+            <div class="form">
+              <h1>Sign in</h1>
+              <p>Enter your personal details and start journey with us</p>
+              <form novalidate>
+                <div class="field-group">
+                  <label for="signin-email">Email</label>
+                  <input type="email" id="signin-email" name="email" placeholder="Email" required aria-required="true" />
+                </div>
+                <div class="field-group">
+                  <label for="signin-password">Password</label>
+                  <input type="password" id="signin-password" name="password" placeholder="Password" required aria-required="true" />
+                </div>
+                <div class="switch-text">
+                  <a href="#" class="link-toggle" id="forgot-password">Forgot your password?</a>
+                </div>
+                <button type="submit" class="btn-primary" aria-label="Sign In">SIGN IN</button>
+                <div class="switch-text">
+                  Don't have an account? <span class="link-toggle" id="to-signup">Sign Up</span>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Sign Up -->
+        <div class="form-panel signup" aria-label="Sign Up Form">
+          <div class="panel panel-white" aria-label="Sign Up content">
+            <div class="form">
+              <h1>Create Account</h1>
+              <p>or use your email for registration</p>
+              <form novalidate>
+                <div class="field-group">
+                  <label for="signup-name">Name</label>
+                  <input type="text" id="signup-name" name="fullname" placeholder="Name" required aria-required="true" />
+                </div>
+                <div class="field-group">
+                  <label for="signup-email">Email</label>
+                  <input type="email" id="signup-email" name="email" placeholder="Email" required aria-required="true" />
+                </div>
+                <div class="field-group">
+                  <label for="signup-password">Password</label>
+                  <input type="password" id="signup-password" name="password" placeholder="Password" required aria-required="true" />
+                </div>
+                <div class="checkbox-row">
+                  <input type="checkbox" id="agree-terms" name="agree_terms" />
+                  <label for="agree-terms">I agree to the terms</label>
+                </div>
+                <button type="submit" class="btn-primary" aria-label="Sign Up">SIGN UP</button>
+                <div class="switch-text">
+                  Already have an account? <span class="link-toggle" id="to-signin">Sign In</span>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Purple info panels (mirrored) -->
+      <div class="panel panel-purple" aria-label="Side action panel" style="flex:0.9; min-width:320px;">
+        <!-- Content swaps based on mode -->
+        <div class="side-content signin-side" style="display:flex; flex-direction:column;">
+          <h1>Hello, Friend!</h1>
+          <p>Enter your personal details and start journey with us</p>
+          <button class="btn-outline" id="goto-signup-panel" aria-label="Go to Sign Up">SIGN UP</button>
+        </div>
+        <div class="side-content signup-side" style="display:none; flex-direction:column;">
+          <h1>Welcome Back!</h1>
+          <p>To keep connected with us please login with your personal info</p>
+          <button class="btn-outline" id="goto-signin-panel" aria-label="Go to Sign In">SIGN IN</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" aria-live="polite" aria-atomic="false"></div>
+
+  <script>
+    // Mode toggle
+    const body = document.body;
+    const toSignup = document.getElementById("to-signup");
+    const toSignin = document.getElementById("to-signin");
+    const gotoSignupPanel = document.getElementById("goto-signup-panel");
+    const gotoSigninPanel = document.getElementById("goto-signin-panel");
+
+    const signinSide = document.querySelector(".signin-side");
+    const signupSide = document.querySelector(".signup-side");
+
+    function setMode(mode) {
+      if (mode === "signup") {
+        body.classList.remove("signin-mode");
+        body.classList.add("signup-mode");
+        signinSide.style.display = "none";
+        signupSide.style.display = "flex";
+      } else {
+        body.classList.remove("signup-mode");
+        body.classList.add("signin-mode");
+        signinSide.style.display = "flex";
+        signupSide.style.display = "none";
+      }
+    }
+
+    toSignup && toSignup.addEventListener("click", (e) => {
+      e.preventDefault();
+      setMode("signup");
+    });
+    gotoSignupPanel && gotoSignupPanel.addEventListener("click", (e) => {
+      e.preventDefault();
+      setMode("signup");
+    });
+    toSignin && toSignin.addEventListener("click", (e) => {
+      e.preventDefault();
+      setMode("signin");
+    });
+    gotoSigninPanel && gotoSigninPanel.addEventListener("click", (e) => {
+      e.preventDefault();
+      setMode("signin");
+    });
+
+    // Toast utility
+    function showToast(msg, type = "default", duration = 3000) {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      toast.className = "toast" + (type === "success" ? " success" : type === "error" ? " error" : "");
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
+      toast.innerHTML = `<div>${msg}</div>`;
+      const closeBtn = document.createElement("button");
+      closeBtn.className = "close-btn";
+      closeBtn.innerHTML = "&times;";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.onclick = () => container.removeChild(toast);
+      toast.appendChild(closeBtn);
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        setTimeout(() => {
+          if (toast.parentNode) container.removeChild(toast);
+        }, 250);
+      }, duration);
+    }
+
+    // Form submission logic
+    document.addEventListener("DOMContentLoaded", () => {
+      // Sign In
+      const signInForm = document.querySelector(".form-panel.signin form");
+      if (signInForm) {
+        signInForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const email = document.getElementById("signin-email").value.trim();
+          const password = document.getElementById("signin-password").value.trim();
+          if (!email) {
+            showToast("Email is required.", "error");
+            return;
+          }
+          if (!password) {
+            showToast("Password is required.", "error");
+            return;
+          }
+          showToast("Signing in...", "success");
+          setTimeout(() => {
+            showToast("Signed in successfully!", "success");
+          }, 700);
+        });
+      }
+
+      // Sign Up
+      const signUpForm = document.querySelector(".form-panel.signup form");
+      if (signUpForm) {
+        signUpForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const name = document.getElementById("signup-name").value.trim();
+          const email = document.getElementById("signup-email").value.trim();
+          const password = document.getElementById("signup-password").value;
+          const agree = document.getElementById("agree-terms").checked;
+          if (!name) {
+            showToast("Name is required.", "error");
+            return;
+          }
+          if (!email) {
+            showToast("Email is required.", "error");
+            return;
+          }
+          if (!password) {
+            showToast("Password is required.", "error");
+            return;
+          }
+          if (!agree) {
+            showToast("You must agree to the terms.", "error");
+            return;
+          }
+          showToast("Creating account...", "success");
+          setTimeout(() => {
+            showToast("Account created successfully!", "success");
+          }, 700);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
